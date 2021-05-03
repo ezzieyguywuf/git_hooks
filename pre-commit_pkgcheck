@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# ~~Shamelessly stole~~ adapted from https://stackoverflow.com/a/56798588
+# there is no filelist when --ammend is used, so just bail out
+if [[ "$(ps -o command -p ${PPID})" == *"--amend"* ]]
+then
+    exit 0
+fi
+
+# Get the list of all staged files
+# first, make sure we're in the root directory
+pushd $(git rev-parse --show-toplevel) > /dev/null || (echo "pushd failed" ; exit 1)
+
+# next, get the list of all staged files
+allStaged=( )
+while  IFS="" read -r aline
+do
+    myArray=(${aline})
+    # Make sure we know how to parse the git status output
+    local targetPath=""
+    case "${myArray[0]}" in
+        1) targetPath="${myArray[- 1]}" ;;
+        2) targetPath="${myArray[- 2]}" ;;
+        *)
+            echo
+            echo "I currently don't know how to handle \"unmerged\" changes as described in the"
+            echo "git porcelain-v2 specification. See \"git help status\" for more information"
+            echo "Feel free to use \"git commit --no-verify\" to skip this check"
+            echo
+            exit 1
+            ;;
+    esac
+
+    # we only need the directory, not the full path
+    target=$(dirname ${targetPath})
+
+    # ignore the files sub-directory
+    if [[ ${target: -5} != 'files' ]]
+    then
+        allStaged+=(${target})
+    fi
+done < <(git status --porcelain=2 -uno)
+
+echo "allStaged = ${allStaged[@]}"
+
+# read -p "enter to continue" < /dev/tty
+
+# restore the CWD
+popd > /dev/null || (echo "popd failed" ; exit 1)
+
+if [[ ${#allStaged[@]} == 0 ]]
+then
+    echo "Doesn't like you have any staged changes. Bailing out"
+    exit 1
+fi
+
+# remove duplicates
+allTargets=$(echo "${allStaged[@]}" | sort -u)
+
+# run pkgcheck on targets
+
+if [[ ${#allTargets[@]} != 1 ]]
+then
+    echo "You have more than one package staged. It's probably a bad idea to commit this"
+    echo "You can try again with `git reset HEAD` (this is safe)"
+    echo "Or if you insist on persisting (see what I did there?), use `git commit --no-verify`"
+
+    exit 1
+fi
+
+cmd="pkgcheck scan --exit \"error,warning,style\" ${allTargets[@]}"
+printf "${cmd}\n\n"
+# printf "${cmd}\n"
+eval ${cmd}
+
+if [[ $? != 0 ]]
+then
+    printf "\npkgcheck failed. You can skip with \"git commit --no-verify\""
+    exit 1
+fi

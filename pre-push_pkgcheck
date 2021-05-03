@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Only check the delta between the local branch and it's remote counterpart -
+# everything else has onstensibly already been checked by this script, and thus
+# it would be wasteful to check again
+branchName=$(git branch --show-current)
+remoteRepository=$(git config --get "branch.${branchName}.remote")
+startSpec="${remoteRepository}/${branchName}"
+
+# TODO: this will probably fail if HEAD is BEHIND remote. *shrug*
+cmd="pkgcheck scan --exit \"error,warning,style\" --commits ${startSpec}..HEAD"
+printf "executing: ${cmd}\n"
+
+
+eval ${cmd}
+
+if [[ $? != 0 ]]
+then
+    1>&2 printf '\npkgcheck failed. You can skip with "git push --no-verify"\n'
+    exit 1
+else
+    printf "it passed \n"
+fi
