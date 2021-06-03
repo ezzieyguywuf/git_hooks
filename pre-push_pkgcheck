@@ -8,7 +8,7 @@ remoteRepository=$(git config --get "branch.${branchName}.remote")
 startSpec="${remoteRepository}/${branchName}"
 
 # TODO: this will probably fail if HEAD is BEHIND remote. *shrug*
-cmd="pkgcheck scan --exit \"error,warning,style\" --commits ${startSpec}..HEAD"
+cmd="pkgcheck scan --exit \"error,warning,style,-DroppedKeywords\" --commits ${startSpec}..HEAD"
 printf "executing: ${cmd}\n"
 
 
