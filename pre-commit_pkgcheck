@@ -17,7 +17,7 @@ while  IFS="" read -r aline
 do
     myArray=(${aline})
     # Make sure we know how to parse the git status output
-    local targetPath=""
+    targetPath=""
     case "${myArray[0]}" in
         1) targetPath="${myArray[- 1]}" ;;
         2) targetPath="${myArray[- 2]}" ;;
@@ -31,13 +31,16 @@ do
             ;;
     esac
 
-    # we only need the directory, not the full path
-    target=$(dirname ${targetPath})
+	# Skip if the file isn't staged
+	[[ ${myArray[1]:0:1} == '.' ]] && continue
+
+    # Skip if it's not an ebuild or an eclass
+    exts=( "ebuild" "eclass" )
 
     # ignore the files sub-directory
-    if [[ ${target: -5} != 'files' ]]
+    if [[ "${exts[@]}" =~ "${targetPath: -5}" ]]
     then
-        allStaged+=(${target})
+        allStaged+=(${targetPath})
     fi
 done < <(git status --porcelain=2 -uno)
 
@@ -50,8 +53,10 @@ popd > /dev/null || (echo "popd failed" ; exit 1)
 
 if [[ ${#allStaged[@]} == 0 ]]
 then
-    echo "Doesn't like you have any staged changes. Bailing out"
-    exit 1
+    echo "Doesn't like you have anything staged that needs to be QAed"
+    echo
+    echo  "Exiting with 0 (so that git can do its thing)"
+    exit 0
 fi
 
 # remove duplicates
@@ -68,7 +73,7 @@ then
     exit 1
 fi
 
-cmd="pkgcheck scan --exit \"error,warning,style\" ${allTargets[@]}"
+cmd="pkgcheck scan --exit \"error,warning,style,-DroppedKeywords\" ${allTargets[@]}"
 printf "${cmd}\n\n"
 # printf "${cmd}\n"
 eval ${cmd}
